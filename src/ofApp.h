@@ -24,10 +24,10 @@ class ofApp : public ofBaseApp{
 		void initializeParticles();
 		
 		ofSpherePrimitive sun;
-		ofSpherePrimitive particles[5000];
-		ofLight lights[5000];
-		float masses[5000];
-		glm::vec3 velocities[5000];
+		ofSpherePrimitive particles[1000000];
+		ofLight lights[1000000];
+		float masses[1000000];
+		glm::vec3 velocities[1000000];
 
 		ofEasyCam cam;
 		

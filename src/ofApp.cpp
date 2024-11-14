@@ -12,7 +12,7 @@ void ofApp::setup(){
 }
 
 void ofApp::initializeParticles(){
-    for (int i = 0; i < 5000; i++) {
+    for (int i = 0; i < 1000000; i++) {
         glm::vec3 position = glm::ballRand(100.0);
         particles[i].setRadius(1.0);
         particles[i].setResolution(64.0);
@@ -46,7 +46,7 @@ void ofApp::update(){
 
     float dt = ofGetLastFrameTime();
 
-    for (int i = 0; i < 5000; i++) {
+    for (int i = 0; i < 1000000; i++) {
         glm::vec3 position = particles[i].getPosition();
         glm::vec3 velocity = velocities[i];
         float x = position.x;
@@ -129,7 +129,7 @@ void ofApp::draw(){
     glm::vec3 hotColor = glm::vec3(1.0, 1.0, 0.8);  // White/Blue for core temperatures
     glm::vec3 coldColor = glm::vec3(1.0, 0.5, 0.3); // Red/Orange for surface temperatures
 
-    for (int i = 0; i < 5000; i++) {
+    for (int i = 0; i < 1000000; i++) {
         glm::vec3 position = particles[i].getPosition();
         float x = position.x;
         float y = position.y;
