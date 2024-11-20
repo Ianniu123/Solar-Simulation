@@ -46,12 +46,12 @@ class ofApp : public ofBaseApp{
 		GLuint feedbackBuffer;
 		GLuint query;
 
-		const int NUMPARTICLES = 10000000;
+		const int NUMPARTICLES = 10000000; //10000000 for best effects
 		const float MASS_SUN = 2000.0;
-		const float OMEGA_EQUATOR = 0.0015;
-		const float DELTA_OMEGA = 0.0005;
+		const float OMEGA_EQUATOR = 0.0002;
+		const float DELTA_OMEGA = 0.0002;
 		const float TEMPREATURE_CORE = 15000.0;
-		const float ALPHA = 2.0;
+		const float ALPHA = 3.0;
     	const float TARGET_RADIUS = 100.0;
     	const float BOLTZMAN_CONSTANT = 0.0000138;
 

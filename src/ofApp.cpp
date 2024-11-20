@@ -61,10 +61,12 @@ void ofApp::initializeShaders(){
             float temperature = T_core * pow(normalized_radius, alpha);
             
             // Thermal velocity
-            vec3 thermal_vel = vec3(sqrt(2.0 * boltzman_constant * temperature / mass) / 1000.0);
+            // https://en.wikipedia.org/wiki/Thermal_velocity
+            vec3 thermal_vel = vec3(sqrt(2.0 * boltzman_constant * temperature / mass)) / 1000.0;
             vel += thermal_vel;
             
-            // Differential rotation
+            // Calculating differential rotation https://en.wikipedia.org/wiki/Differential_rotation
+            // https://mecharithm.com/learning/lesson/velocities-in-robotics-angular-velocities-twists-10
             if (dist > 0.0) {
                 float polar_angle = acos(pos.y / dist);
                 float latitude = M_PI / 2.0 - polar_angle;

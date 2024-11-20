@@ -15,11 +15,11 @@ void main() {
     // Color based on velocity
     float dist = length(position);
     float normalized_radius = (target_radius - dist) / target_radius;
-    float temperature = T_core * pow(normalized_radius, alpha);
+    float temperature = T_core * pow(normalized_radius, 1);
     
     vec3 coreColor = vec3(1.0, 1.0, 1.0);
-    vec3 hotColor = vec3(1.0, 1.0, 0.8);
-    vec3 coldColor = vec3(1.0, 0.5, 0.3);
+    vec3 hotColor = vec3(1.0, 0.75, 0.45);
+    vec3 coldColor = vec3(0.75, 0.05, 0);
 
     vec3 color;
 
@@ -28,7 +28,6 @@ void main() {
     } else {
         color = mix(coldColor, hotColor, temperature / T_core);
     }
-    
     vColor = vec4(color, 1.0);
     gl_Position = modelViewProjectionMatrix * position;
     gl_PointSize = 1.0;
