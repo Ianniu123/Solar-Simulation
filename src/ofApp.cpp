@@ -5,158 +5,200 @@
 //--------------------------------------------------------------
 void ofApp::setup(){
     ofSetVerticalSync(true);
-    ofSetRandomSeed(0);
-
+    
+    // Initialize particle data
+    positions.resize(numParticles);
+    velocities.resize(numParticles);
+    masses.resize(numParticles);
+    
     initializeParticles();
+    
+    // Setup transform feedback shader
+    string updateVertSource = R"(
+        #version 150
+        uniform mat4 modelViewProjectionMatrix;
+        uniform float time;
+        uniform float deltaTime;
+        uniform float mass_sun;
+        uniform float omega_equator;
+        uniform float delta_omega;
+        uniform float T_core;
+        uniform float alpha;
+        uniform float target_radius;
+        uniform float boltzman_constant;
+        
+        in vec4 position;
+        in vec4 velocity;
+        in float mass;
+        
+        out vec4 outPosition;
+        out vec4 outVelocity;
 
+        const float M_PI = 3.1415926535897932384626433832795;
+
+        void main() {
+            vec3 pos = position.xyz;
+            vec3 vel = velocity.xyz * 0;
+            
+            float dist = length(pos);
+            vec3 acceleration = vec3(0.0);
+            
+            // Temperature calculation
+            float normalized_radius = (target_radius - dist) / target_radius;
+            float temperature = T_core * pow(normalized_radius, alpha);
+            
+            // Thermal velocity
+            vec3 thermal_vel = vec3(sqrt(2.0 * boltzman_constant * temperature / mass) / 1000.0);
+            vel += thermal_vel;
+            
+            // Differential rotation
+            if (dist > 0.0) {
+                float polar_angle = acos(pos.y / dist);
+                float latitude = M_PI / 2.0 - polar_angle;
+                float angular_velocity = omega_equator - delta_omega * pow(sin(latitude), 2.0);
+                
+                vel.x += -angular_velocity * pos.z;
+                vel.z += angular_velocity * pos.x;
+            }
+            
+            // Gravity
+            if (dist > 5.0) {
+                float F_gravity = 0.00667 * mass_sun / (dist * dist);
+                acceleration -= F_gravity * pos / dist;
+            }
+            
+            // Pressure
+            if (dist > 5.0) {
+                float F_pressure = 5.0 * exp(-dist / 5.0);
+                acceleration += F_pressure * pos / dist;
+            }
+            
+            // Update velocity and position
+            vel += acceleration * deltaTime;
+            pos += vel * exp(-0.02 * deltaTime);
+            
+            outPosition = vec4(pos, 1.0);
+            outVelocity = vec4(vel, 0.0);
+        }
+    )";
+    
+    string updateFragSource = R"(
+        #version 150
+        out vec4 fragColor;
+        void main() {
+            fragColor = vec4(0.0);
+        }
+    )";
+    
+    updateShader.setupShaderFromSource(GL_VERTEX_SHADER, updateVertSource);
+    updateShader.setupShaderFromSource(GL_FRAGMENT_SHADER, updateFragSource);
+    
+    // Setup transform feedback
+    const GLchar* feedbackVaryings[] = { "outPosition", "outVelocity" };
+    glTransformFeedbackVaryings(updateShader.getProgram(), 2, 
+                               feedbackVaryings, GL_SEPARATE_ATTRIBS);
+    updateShader.linkProgram();
+    
+    // Setup draw shader
+    drawShader.load("shaders/particle");
+    
+    // Setup double-buffered VBOs
+    for(int i = 0; i < 2; i++) {
+        vbos[i].setVertexData((float*)&positions[0], 4, positions.size(), GL_DYNAMIC_DRAW, 0);
+        vbos[i].setAttributeData(1, (float*)&velocities[0], 4, velocities.size(), GL_DYNAMIC_DRAW);
+        vbos[i].setAttributeData(2, &masses[0], 1, masses.size(), GL_DYNAMIC_DRAW);
+    }
+    
+    // Create transform feedback buffer
+    glGenTransformFeedbacks(1, &feedbackBuffer);
+    
+    // Create query object for transform feedback
+    glGenQueries(1, &query);
+    
+    currentVbo = 0;
+    
+    glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, feedbackBuffer);
+    glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, vbos[1].getVertId());
+    glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 1, vbos[1].getAttributeId(1));
 }
 
 void ofApp::initializeParticles(){
-    for (int i = 0; i < 1000000; i++) {
+    for (int i = 0; i < numParticles; i++) {
         glm::vec3 position = glm::ballRand(100.0);
-        particles[i].setRadius(1.0);
-        particles[i].setResolution(64.0);
-        particles[i].setPosition(position);
-        
-        lights[i].setPointLight();
-        lights[i].setPosition(position);
-        lights[i].setScale(0.01);
-
-
+        positions[i] = glm::vec4(position, 1.0);
+        velocities[i] = glm::vec4(0.0);
         masses[i] = ofRandom(1.0);
-        
-        glm::vec3 velocity(0, 0, 0);
-        velocities[i] = velocity;
     }
 }
 
 //--------------------------------------------------------------
-void ofApp::update(){
-    int time = ofGetElapsedTimeMillis();
+void ofApp::update() {
+    // Bind update shader
+    updateShader.begin();
+    // Set uniforms
+    updateShader.setUniform1f("deltaTime", ofGetLastFrameTime());
+    updateShader.setUniform1f("time", ofGetElapsedTimef());
+    updateShader.setUniform1f("mass_sun", 2000.0);
+    updateShader.setUniform1f("omega_equator", 0.0015);
+    updateShader.setUniform1f("delta_omega", 0.0005);
+    updateShader.setUniform1f("T_core", 15000.0);
+    updateShader.setUniform1f("alpha", 2.0);
+    updateShader.setUniform1f("target_radius", 100.0);
+    updateShader.setUniform1f("boltzman_constant", 0.0000138);
 
-    float mass_sun = 2000;
-
-    float omega_equator = 0.0015;         // Angular velocity at the equator
-    float delta_omega = 0.0005;           // Differential rotation coefficient (adjust as needed)            
+    // Begin transform feedback
+    glEnable(GL_RASTERIZER_DISCARD);
+    glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, feedbackBuffer);
     
-    float T_core = 15000;      // Core temperature in Kelvin
-    float alpha = 2.0;            // Controls the temperature gradient steepness
-    float target_radius = 100.0;
-    float boltzman_constant = 0.0000138;
-
-    float dt = ofGetLastFrameTime();
-
-    for (int i = 0; i < 1000000; i++) {
-        glm::vec3 position = particles[i].getPosition();
-        glm::vec3 velocity = velocities[i];
-        float x = position.x;
-        float y = position.y;
-        float z = position.z;
-        float mass = masses[i];
-
-        float dist = sqrt(pow(x, 2) + pow(y, 2) + pow(z, 2));
-        float ax = 0;
-        float ay = 0;
-        float az = 0;
-
-        // Set particle speed proportional to the square root of the temperature
-        float normalized_radius = (target_radius - dist) / target_radius;
-        float temperature = T_core * pow(normalized_radius, alpha);
-        
-        //https://en.wikipedia.org/wiki/Thermal_velocity#cite_note-Gurnett-2
-        velocity.x = sqrt(2 * boltzman_constant * temperature / mass) / 1000;
-        velocity.y = sqrt(2 * boltzman_constant * temperature / mass) / 1000;
-        velocity.z = sqrt(2 * boltzman_constant * temperature / mass) / 1000;
-        
-        // Calculating differential rotation https://en.wikipedia.org/wiki/Differential_rotation
-        // https://mecharithm.com/learning/lesson/velocities-in-robotics-angular-velocities-twists-10
-        if (dist != 0) {
-            float polar_angle = acos(y / dist);  // Calculate polar angle in radians
-            float latitude = M_PI / 2 - polar_angle;  // Convert to latitude in radians
-            float angular_velocity = omega_equator - delta_omega * pow(sin(latitude), 2);
-            
-            velocity.x += -angular_velocity * z;
-            velocity.z += angular_velocity * x;          
-        }
-
-        //Calculating Forces
-        if (dist > 5) {
-            float F_gravity = 0.00667 * mass_sun / (dist * dist);
-            ax += -F_gravity * x / dist;
-            ay += -F_gravity * y / dist;
-            az += -F_gravity * z / dist;
-        }
-
-        if (dist > 5) {
-            float F_pressure = 5 * exp(-dist / 5);
-            ax += F_pressure * x / dist;
-            ay += F_pressure * y / dist;
-            az += F_pressure * z / dist;
-        }
-
-        velocity.x += ax * dt;
-        velocity.y += ay * dt;
-        velocity.z += az * dt;
-
-        //apply damping
-        position.x += velocity.x * exp(-0.02 * dt);
-        position.y += velocity.y * exp(-0.02 * dt);
-        position.z += velocity.z * exp(-0.02 * dt);
-
-        particles[i].setPosition(position);
-        lights[i].setPosition(position);
-        velocities[i] = velocity;
-
-    }
+    // Bind destination buffers
+    glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, vbos[1-currentVbo].getVertId());
+    glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 1, vbos[1-currentVbo].getAttributeId(1));
+    
+    glBeginTransformFeedback(GL_POINTS);
+    
+    // Bind source VBO
+    vbos[currentVbo].bind();
+    
+    // Draw points
+    glDrawArrays(GL_POINTS, 0, positions.size());
+    
+    // End transform feedback
+    glEndTransformFeedback();
+    glDisable(GL_RASTERIZER_DISCARD);
+    
+    // Unbind
+    vbos[currentVbo].unbind();
+    glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0);
+    
+    // Swap buffers
+    currentVbo = 1 - currentVbo;
+    
+    updateShader.end();
 }
 
 //--------------------------------------------------------------
 void ofApp::draw(){
 	ofBackground(20);
     ofEnableDepthTest();
-    ofEnableLighting();
-    ofSetColor(ofColor::white);
-
     cam.begin();
-    // granule.begin();
-    // granule.setUniform1f("time", ofGetElapsedTimef());
-
-    float T_core = 15000;      // Core temperature
-    float alpha = 2.0;            // Controls the temperature gradient steepness
-    float target_radius = 100.0;
-
-    glm::vec3 coreColor = glm::vec3(255.0, 255.0, 255.0);  // Pure white for the hottest part of the core
-    glm::vec3 hotColor = glm::vec3(1.0, 1.0, 0.8);  // White/Blue for core temperatures
-    glm::vec3 coldColor = glm::vec3(1.0, 0.5, 0.3); // Red/Orange for surface temperatures
-
-    for (int i = 0; i < 1000000; i++) {
-        glm::vec3 position = particles[i].getPosition();
-        float x = position.x;
-        float y = position.y;
-        float z = position.z;
-
-        float dist = sqrt(pow(x, 2) + pow(y, 2) + pow(z, 2));
-        // Calculate temperature based on radial distance
-        float normalized_radius = (target_radius - dist) / target_radius;
-        float temperature = T_core * pow(normalized_radius, alpha);
-
-        // Set particle color based on temperature
-        glm::vec3 color;
-        if (temperature > T_core * 0.6) {  // Hottest part near core
-            color = coreColor;
-        } else {  // Surface and cooler layers
-            color = glm::mix(coldColor, hotColor, temperature / T_core) * 255.0;
-        }
-        ofSetColor(color.x, color.y, color.z);
-        
-        particles[i].draw();
-        lights[i].draw();
-    }
-    // granule.end();
-
+    
+    drawShader.begin();
+    drawShader.setUniform1f("time", ofGetElapsedTimef());
+    drawShader.setUniform1f("mass_sun", 2000.0);
+    drawShader.setUniform1f("omega_equator", 0.0015);
+    drawShader.setUniform1f("delta_omega", 0.0005);
+    drawShader.setUniform1f("T_core", 15000.0);
+    drawShader.setUniform1f("alpha", 2.0);
+    drawShader.setUniform1f("target_radius", 100.0);
+    drawShader.setUniform1f("boltzman_constant", 0.0000138);
+    
+    // Draw particles using current VBO
+    vbos[currentVbo].draw(GL_POINTS, 0, positions.size());
+    
+    drawShader.end();
+    
     cam.end();
-
-    ofDisableLighting();
+    
     ofDisableDepthTest();
 }
 

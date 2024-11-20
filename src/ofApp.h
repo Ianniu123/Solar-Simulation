@@ -24,13 +24,30 @@ class ofApp : public ofBaseApp{
 		void initializeParticles();
 		
 		ofSpherePrimitive sun;
-		ofSpherePrimitive particles[1000000];
-		ofLight lights[1000000];
-		float masses[1000000];
-		glm::vec3 velocities[1000000];
+		// ofSpherePrimitive particles[10000];
+		// ofLight lights[10000];
+		// float masses[10000];
+		// glm::vec3 velocities[10000];
 
 		ofEasyCam cam;
+
+		ofShader particleShader;
+		ofVbo particleVbo;
+		vector<glm::vec4> positions;
+		vector<glm::vec4> velocities;
+		vector<float> masses;
+
+		// Shaders for update and draw
+		ofShader updateShader;
+		ofShader drawShader;
 		
-		ofShader granule;
-		ofTexture mTex;
+		// Double-buffered VBOs for transform feedback
+		ofVbo vbos[2];
+		int currentVbo;
+		
+		// Transform feedback objects
+		GLuint feedbackBuffer;
+		GLuint query;
+
+		const int numParticles = 10000000;
 };
