@@ -7,17 +7,30 @@ void ofApp::setup(){
     ofSetVerticalSync(true);
     
     // Initialize particle data
-    positions.resize(numParticles);
-    velocities.resize(numParticles);
-    masses.resize(numParticles);
+    positions.resize(NUMPARTICLES);
+    velocities.resize(NUMPARTICLES);
+    masses.resize(NUMPARTICLES);
     
     initializeParticles();
     
+    initializeShaders();
+    initializeVboBuffers();
+}
+
+void ofApp::initializeParticles(){
+    for (int i = 0; i < NUMPARTICLES; i++) {
+        glm::vec3 position = glm::ballRand(TARGET_RADIUS);
+        positions[i] = glm::vec4(position, 1.0);
+        velocities[i] = glm::vec4(0.0);
+        masses[i] = ofRandom(1.0);
+    }
+}
+
+void ofApp::initializeShaders(){
     // Setup transform feedback shader
     string updateVertSource = R"(
         #version 150
         uniform mat4 modelViewProjectionMatrix;
-        uniform float time;
         uniform float deltaTime;
         uniform float mass_sun;
         uniform float omega_equator;
@@ -89,18 +102,20 @@ void ofApp::setup(){
             fragColor = vec4(0.0);
         }
     )";
-    
+
     updateShader.setupShaderFromSource(GL_VERTEX_SHADER, updateVertSource);
     updateShader.setupShaderFromSource(GL_FRAGMENT_SHADER, updateFragSource);
-    
+
+    drawShader.load("shaders/particle");
+
+}
+
+void ofApp::initializeVboBuffers(){
     // Setup transform feedback
     const GLchar* feedbackVaryings[] = { "outPosition", "outVelocity" };
     glTransformFeedbackVaryings(updateShader.getProgram(), 2, 
                                feedbackVaryings, GL_SEPARATE_ATTRIBS);
     updateShader.linkProgram();
-    
-    // Setup draw shader
-    drawShader.load("shaders/particle");
     
     // Setup double-buffered VBOs
     for(int i = 0; i < 2; i++) {
@@ -121,30 +136,20 @@ void ofApp::setup(){
     glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, vbos[1].getVertId());
     glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 1, vbos[1].getAttributeId(1));
 }
-
-void ofApp::initializeParticles(){
-    for (int i = 0; i < numParticles; i++) {
-        glm::vec3 position = glm::ballRand(100.0);
-        positions[i] = glm::vec4(position, 1.0);
-        velocities[i] = glm::vec4(0.0);
-        masses[i] = ofRandom(1.0);
-    }
-}
-
 //--------------------------------------------------------------
 void ofApp::update() {
     // Bind update shader
     updateShader.begin();
+
     // Set uniforms
     updateShader.setUniform1f("deltaTime", ofGetLastFrameTime());
-    updateShader.setUniform1f("time", ofGetElapsedTimef());
-    updateShader.setUniform1f("mass_sun", 2000.0);
-    updateShader.setUniform1f("omega_equator", 0.0015);
-    updateShader.setUniform1f("delta_omega", 0.0005);
-    updateShader.setUniform1f("T_core", 15000.0);
-    updateShader.setUniform1f("alpha", 2.0);
-    updateShader.setUniform1f("target_radius", 100.0);
-    updateShader.setUniform1f("boltzman_constant", 0.0000138);
+    updateShader.setUniform1f("mass_sun", MASS_SUN);
+    updateShader.setUniform1f("omega_equator", OMEGA_EQUATOR);
+    updateShader.setUniform1f("delta_omega", DELTA_OMEGA);
+    updateShader.setUniform1f("T_core", TEMPREATURE_CORE);
+    updateShader.setUniform1f("alpha", ALPHA);
+    updateShader.setUniform1f("target_radius", TARGET_RADIUS);
+    updateShader.setUniform1f("boltzman_constant", BOLTZMAN_CONSTANT);
 
     // Begin transform feedback
     glEnable(GL_RASTERIZER_DISCARD);
@@ -183,18 +188,13 @@ void ofApp::draw(){
     cam.begin();
     
     drawShader.begin();
-    drawShader.setUniform1f("time", ofGetElapsedTimef());
-    drawShader.setUniform1f("mass_sun", 2000.0);
-    drawShader.setUniform1f("omega_equator", 0.0015);
-    drawShader.setUniform1f("delta_omega", 0.0005);
-    drawShader.setUniform1f("T_core", 15000.0);
-    drawShader.setUniform1f("alpha", 2.0);
-    drawShader.setUniform1f("target_radius", 100.0);
-    drawShader.setUniform1f("boltzman_constant", 0.0000138);
-    
+    drawShader.setUniform1f("T_core",TEMPREATURE_CORE);
+    drawShader.setUniform1f("alpha", ALPHA);
+    drawShader.setUniform1f("target_radius", TARGET_RADIUS);
+
     // Draw particles using current VBO
     vbos[currentVbo].draw(GL_POINTS, 0, positions.size());
-    
+
     drawShader.end();
     
     cam.end();

@@ -22,13 +22,10 @@ class ofApp : public ofBaseApp{
 		void gotMessage(ofMessage msg);
 
 		void initializeParticles();
+		void initializeShaders();
+    	void initializeVboBuffers();
 		
-		ofSpherePrimitive sun;
-		// ofSpherePrimitive particles[10000];
 		// ofLight lights[10000];
-		// float masses[10000];
-		// glm::vec3 velocities[10000];
-
 		ofEasyCam cam;
 
 		ofShader particleShader;
@@ -49,5 +46,13 @@ class ofApp : public ofBaseApp{
 		GLuint feedbackBuffer;
 		GLuint query;
 
-		const int numParticles = 10000000;
+		const int NUMPARTICLES = 10000000;
+		const float MASS_SUN = 2000.0;
+		const float OMEGA_EQUATOR = 0.0015;
+		const float DELTA_OMEGA = 0.0005;
+		const float TEMPREATURE_CORE = 15000.0;
+		const float ALPHA = 2.0;
+    	const float TARGET_RADIUS = 100.0;
+    	const float BOLTZMAN_CONSTANT = 0.0000138;
+
 };
