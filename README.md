@@ -1,1 +1,1 @@
-# COMP3009-Final
+ Solar Simulation
